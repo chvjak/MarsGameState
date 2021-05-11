@@ -1,0 +1,166 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+
+    <title></title>
+    <style>
+        table {
+            border-spacing: 0px;
+            font-family: Arial;
+        }
+
+        td {
+            padding: 5pt 5pt 5pt 5pt;
+            vertical-align: top;
+            border-top-color: #000;
+            border-left-color: #000;
+            border-right-color: #000;
+            border-bottom-color: #000;
+            border-top-width: 1pt;
+            border-right-width: 1pt;
+            border-left-width: 1pt;
+            border-bottom-width: 1pt;
+            border-right-style: solid;
+            border-top-style: solid;
+            border-left-style: solid;
+            border-bottom-style: solid;
+        }
+
+        .c80 {
+            padding: 5pt 5pt 5pt 5pt;
+            vertical-align: top;
+            background-color: #f1c232
+        }
+
+        .backgroundcolorblack {
+            background-color: #000;
+        }
+
+        .whitebold {
+            color: #fff;
+            font-weight: 700;
+        }
+    </style>
+    <script>
+        //HOST_NAME = "http://localhost:7071";
+        HOST_NAME = "https://mars-mvp.azurewebsites.net/"
+        GAME_ID = document.location.pathname;
+        colors = [
+            "#000000",
+            "#990000",
+            "#990000",
+            "#990000",
+            "#990000",
+            "#990000",
+            "#e69138",
+            "#e69138",
+            "#e69138",
+            "#e69138",
+            "#f1c232",
+            "#f1c232",
+            "#f1c232",
+            "#f1c232",
+            "#38761d",
+            "#38761d",
+            "#38761d",
+            "#38761d",
+            "#38761d",
+            "#38761d",
+            "#38761d"]
+
+        prompts = [
+            "The colony is destroyed if it drops to zero",
+            "No chance",
+            "",
+            "",
+            "The colony begins at this level",
+            "",
+            "On a roll of 6",
+            "",
+            "A roll of 5 or higher",
+            "",
+            "A roll of 4 or higher",
+            "",
+            "A roll of 3 or higher",
+            "",
+            "A roll of 2 or higher",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""]
+        document.addEventListener('DOMContentLoaded',
+            async function () {
+
+                // TODO: load state, use state.Max as maximum
+                for (var i = 0; i < 21; i++) {
+                    addStateRow(i, colors[i], prompts[i]);
+                }
+
+                await updatePosition()
+
+                setInterval(updatePosition, 10000);
+            })
+
+        async function updatePosition() {
+            let url = HOST_NAME +  GAME_ID + "?action=GET_POSITION";
+
+            var response = await fetch(url, {
+                method: 'GET'
+            }).catch(() => alert("Error fetching data"));
+
+            gameState = JSON.parse(await response.text());
+            document.form1.position.value = gameState.Position;
+
+            return true;
+        }
+
+        function addStateRow(position, color, text) {
+            var table = document.getElementById("table1");
+            tr = table.insertRow(-1);
+
+            var tabCell = tr.insertCell(-1);
+            tabCell.innerHTML = "<span class='whitebold'>" + position + "</span>";
+            tabCell.classList.add("whitebold");
+            tabCell.style.backgroundColor = color;
+
+
+            var tabCell = tr.insertCell(-1);
+            tabCell.innerHTML = "<input type='radio' name='position' value='" + position + "'>";
+
+            var tabCell = tr.insertCell(-1);
+            tabCell.innerHTML = "<span>" + text + "</span>";;
+        }
+    </script>
+</head>
+<body>
+        <form method="POST" id="form1" name="form1">
+        <table id="table1">
+            <tbody>
+                <tr>
+                    <td class="backgroundcolorblack">
+                        <p>
+                            <span class="whitebold">Track</span>
+                        </p>
+                    </td>
+                    <td class="backgroundcolorblack">
+                        <p>
+                            <span class="whitebold"></span>
+                        </p>
+                    </td>
+                    <td class="backgroundcolorblack">
+                        <p>
+                            <span class="whitebold">Stay on Mars survival (on 1d6)</span>
+                        </p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+            <br>
+            <input type="submit" value="Set New State">
+        </form>
+</body>
+</html>
