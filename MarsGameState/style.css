@@ -1,0 +1,36 @@
+﻿table {
+    border-spacing: 0px;
+    font-family: Arial;
+}
+
+td {
+    padding: 5pt 5pt 5pt 5pt;
+    vertical-align: top;
+    border-top-color: #000;
+    border-left-color: #000;
+    border-right-color: #000;
+    border-bottom-color: #000;
+    border-top-width: 1pt;
+    border-right-width: 1pt;
+    border-left-width: 1pt;
+    border-bottom-width: 1pt;
+    border-right-style: solid;
+    border-top-style: solid;
+    border-left-style: solid;
+    border-bottom-style: solid;
+}
+
+.c80 {
+    padding: 5pt 5pt 5pt 5pt;
+    vertical-align: top;
+    background-color: #f1c232
+}
+
+.backgroundcolorblack {
+    background-color: #000;
+}
+
+.whitebold {
+    color: #fff;
+    font-weight: 700;
+}

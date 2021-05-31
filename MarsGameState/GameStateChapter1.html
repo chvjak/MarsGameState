@@ -5,47 +5,9 @@
     <meta charset="utf-8" />
 
     <title></title>
-    <style>
-        table {
-            border-spacing: 0px;
-            font-family: Arial;
-        }
-
-        td {
-            padding: 5pt 5pt 5pt 5pt;
-            vertical-align: top;
-            border-top-color: #000;
-            border-left-color: #000;
-            border-right-color: #000;
-            border-bottom-color: #000;
-            border-top-width: 1pt;
-            border-right-width: 1pt;
-            border-left-width: 1pt;
-            border-bottom-width: 1pt;
-            border-right-style: solid;
-            border-top-style: solid;
-            border-left-style: solid;
-            border-bottom-style: solid;
-        }
-
-        .c80 {
-            padding: 5pt 5pt 5pt 5pt;
-            vertical-align: top;
-            background-color: #f1c232
-        }
-
-        .backgroundcolorblack {
-            background-color: #000;
-        }
-
-        .whitebold {
-            color: #fff;
-            font-weight: 700;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css"/>
+    <script type="text/javascript" src="code.js"></script>
     <script>
-        //HOST_NAME = "http://localhost:7071";
-        HOST_NAME = "https://mars-mvp.azurewebsites.net/"
         GAME_ID = document.location.pathname;
         colors = [
             "#000000",
@@ -94,19 +56,17 @@
             ""]
         document.addEventListener('DOMContentLoaded',
             async function () {
-
-                // TODO: load state, use state.Max as maximum
                 for (var i = 0; i < 21; i++) {
                     addStateRow(i, colors[i], prompts[i]);
                 }
 
                 await updatePosition()
 
-                setInterval(updatePosition, 10000);
+                setInterval(updatePosition, 5000);
             })
 
         async function updatePosition() {
-            let url = HOST_NAME +  GAME_ID + "?action=GET_POSITION";
+            let url = HOST_NAME + GAME_ID + "?action=GET_POSITION";
 
             var response = await fetch(url, {
                 method: 'GET'
@@ -116,6 +76,22 @@
             document.form1.position.value = gameState.Position;
 
             return true;
+        }
+
+        async function postNewPosition() {
+            let formData = new FormData()
+
+            formData.append('position', document.form1.position.value)
+
+            let url = HOST_NAME + GAME_ID;
+            console.log("Posting position info to " + url)
+            var response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            }).catch(() => alert("Error fetching data"));
+
+            await response
+            await updatePosition()
         }
 
         function addStateRow(position, color, text) {
@@ -137,7 +113,7 @@
     </script>
 </head>
 <body>
-        <form method="POST" id="form1" name="form1">
+    <form method="POST" id="form1" name="form1">
         <table id="table1">
             <tbody>
                 <tr>
@@ -159,8 +135,19 @@
                 </tr>
             </tbody>
         </table>
-            <br>
-            <input type="submit" value="Set New State">
-        </form>
-</body>
-</html>
+        <br>
+        <input type="button" value="Set New State" onclick="postNewPosition()">
+        <input type="button" value="Next Chapter">
+        <input type="button" value="Pause Game">
+    </form>
+
+    <!-- TODO: Show turns
+             <table>
+               <tr><th>Player</th><th>Turn</th></tr>
+               <tr><td>Player 1</td><td><input type=radio name=player_turn></td></tr>
+               <tr><td>Player 2</td><td><input type=radio name=player_turn></td></tr>
+             </table>
+        -->
+
+    </body>
+    </html>

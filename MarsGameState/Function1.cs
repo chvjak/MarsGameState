@@ -11,38 +11,65 @@ using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.Extensions.Configuration;
 using System.Linq;
+using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
 
 namespace MarsGameState
 {
     public static class Function1
     {
         private static readonly string GAME_STATES_TABLE_NAME = "GameStates";
+        private static readonly string PLAYER_ROLES_TABLE_NAME = "PlayerRoles";
+
+        private static readonly string[] files = new string[] { "code.js", "style.css", "favicon.ico" };
+        private static readonly string[] chapterHtml = new string[] { "GameStateCreateJoin.html", "GameStateIntroduction.html", "GameStateChapter1.html" };
+
         //private static readonly string URL = "http://localhost:7071/";
         private static readonly string URL = "https://mars-mvp.azurewebsites.net/";
 
         [FunctionName("Function1")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "{game_id?}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "{game_id?}/{action1?}")] HttpRequest req,
             string game_id,
+            string action1,
             ILogger log, ExecutionContext context)
         {
             try
             {
-                if (game_id == null || game_id == "")
-                { 
-                    game_id = GenerateId();
-                    RedirectResult rr = new RedirectResult(URL + game_id);
-                    return rr;
-                }
+                string GameHostName = "DefaultHost";
 
                 if (req.Method == "GET")
                 {
+                    if (game_id == null || game_id == "")
+                    {
+                        string filePath = chapterHtml[0];
+                        string fileMimeType = "text/html";
+
+                        string htmlFilePath = Path.Combine(context.FunctionAppDirectory, filePath);
+                        var content1 = File.ReadAllText(htmlFilePath);
+
+                        var cr = new ContentResult()
+                        {
+                            Content = content1,
+                            ContentType = fileMimeType,
+                        };
+
+                        return cr;
+                    }
+
                     string action = req.Query["action"];
                     if (action == "GET_POSITION")
                     {
-                        var gameState = await LoadGameStateAsync(game_id, log, context);
+                        string playerName = req.Cookies["PlayerName"];
 
-                        string content1 = JsonConvert.SerializeObject(gameState).ToString(); ;
+                        var gameState = await LoadGameStateAsync(game_id, log, context);
+                        JObject jsonObj = JObject.FromObject(gameState);
+                        jsonObj.Add("PlayerName", playerName);
+
+                        var playerRoles = await LoadPlayerRolesAsync(game_id, log, context);
+                        jsonObj.Add("RolesDistribution", JArray.FromObject(playerRoles));
+
+                        string content1 = JsonConvert.SerializeObject(jsonObj);
                         var cr1 = new ContentResult()
                         {
                             Content = content1,
@@ -53,14 +80,28 @@ namespace MarsGameState
                     }
                     else
                     {
-                        // get the state, preferably without reloading, OR the page could have autorefresh
-                        string htmlFilePath = Path.Combine(context.FunctionAppDirectory, "GameState.html");
+                        string filePath = "";
+                        string fileMimeType = "";
+
+                        if (files.Contains(game_id))
+                        {
+                            filePath = game_id;
+                            fileMimeType = "text/css";
+                        }
+                        else { 
+                            var gameState = await LoadGameStateAsync(game_id, log, context);
+                            
+                            filePath = chapterHtml[gameState.GameChapter];
+                            fileMimeType = "text/html";
+                        }
+
+                        string htmlFilePath = Path.Combine(context.FunctionAppDirectory, filePath);
                         var content1 = File.ReadAllText(htmlFilePath);
 
                         var cr = new ContentResult()
                         {
                             Content = content1,
-                            ContentType = "text/html",
+                            ContentType = fileMimeType,
                         };
 
                         return cr;
@@ -68,12 +109,58 @@ namespace MarsGameState
                 }
                 else if (req.Method == "POST")
                 {
-                    var gameState = new GameState(game_id, 20);
-                    gameState.Position = Int32.Parse(req.Form["position"]);
-                    await SaveGameStateAsync(gameState, log, context);
+                    GameState gameState = null;
+                    bool logon = false;
+                    if (game_id == null || game_id == "")
+                    {
+                        logon = true;
+                        if (req.Form.ContainsKey("game_id") && req.Form["game_id"] != "")
+                            game_id = req.Form["game_id"]; // joined the game
+                        else
+                            game_id = GenerateId(); // game creation
+                    }
 
-                    RedirectResult rr = new RedirectResult(URL + game_id);
-                    return rr;
+                    gameState = (await LoadGameStateAsync(game_id, log, context)) ?? new GameState(game_id, GameHostName);
+                    if (req.Form.ContainsKey("chapter"))
+                        gameState.GameChapter = Int32.Parse(req.Form["chapter"]);
+
+                    string playerName = req.Cookies["PlayerName"];
+                    if (playerName == "" || playerName == null)
+                        if(req.Form.ContainsKey("player_name"))
+                        {
+                            playerName = req.Form["player_name"];
+                            SetCookie(req, "PlayerName", playerName, DateTimeOffset.Now.AddDays(1));
+                        }
+                        else
+                            throw new UnauthorizedAccessException("Player name must be specified");
+
+                    if (gameState.GameChapter == 1)
+                    { // player chosen a role
+                        // TODO: need to distingusih READY and ROLE_SELECT - in particular with regards the result
+                        string role = "";
+
+                        if (req.Form.ContainsKey("role"))
+                            role = req.Form["role"];
+
+                        var playerRole = new PlayerRole(game_id, playerName, role);
+                        await SavePlayerRoleAsync(playerRole, log, context);
+                    }
+                    else if (gameState.GameChapter == 2)
+                    { // progress in chapter changed OR chapter changed
+                        if(req.Form.ContainsKey("position"))
+                            gameState.Position =  Int32.Parse(req.Form["position"]);
+                    }
+
+                    await SaveGameStateAsync(gameState, log, context); // not always make sense - so far on game create and position update
+
+                    // create or join
+                    if (logon)
+                    {
+                        RedirectResult rr = new RedirectResult(URL + game_id);
+                        return rr;
+                    }
+                    else
+                        return new OkObjectResult("OK");
                 }
                 else throw new NotImplementedException();
             }
@@ -82,6 +169,53 @@ namespace MarsGameState
                 log.LogError(e.Message);
                 return new OkObjectResult(e.Message);
             }
+        }
+
+        private static void SetCookie(HttpRequest req, string cookie_name, string cookie_value, DateTimeOffset time_to_expiration)
+        {
+            CookieOptions option = new CookieOptions();
+            option.Expires = time_to_expiration;
+            option.HttpOnly = true;
+            req.HttpContext.Response.Cookies.Append(cookie_name, cookie_value, option);
+        }
+
+        private static async Task<string> SavePlayerRoleAsync(PlayerRole playerRole, ILogger log, ExecutionContext context)
+        {
+            CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
+            var tableClient1 = storageAccount1.CreateCloudTableClient();
+            var table1 = tableClient1.GetTableReference(PLAYER_ROLES_TABLE_NAME);
+            await table1.CreateIfNotExistsAsync();
+
+            TableResult tr = await table1.ExecuteAsync(TableOperation.InsertOrReplace(playerRole));
+            return playerRole.GameId;
+        }
+
+        private static async Task<PlayerRole> LoadPlayerRoleAsync(string gameId, string playerName, ILogger log, ExecutionContext context)
+        {
+            CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
+            var tableClient1 = storageAccount1.CreateCloudTableClient();
+            var table1 = tableClient1.GetTableReference(PLAYER_ROLES_TABLE_NAME);
+
+            string filterPK = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, gameId);
+            string filterRK = TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, playerName);
+
+            var query = new TableQuery<PlayerRole>().Where(TableQuery.CombineFilters(filterPK, TableOperators.And, filterRK));
+
+            var tr = await table1.ExecuteQuerySegmentedAsync(query, null);
+            return tr.SingleOrDefault();
+        }
+
+        private static async Task<IEnumerable<PlayerRole>> LoadPlayerRolesAsync(string gameId, ILogger log, ExecutionContext context)
+        {
+            CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
+            var tableClient1 = storageAccount1.CreateCloudTableClient();
+            var table1 = tableClient1.GetTableReference(PLAYER_ROLES_TABLE_NAME);
+
+            string filter = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, gameId);
+            var query = new TableQuery<PlayerRole>().Where(filter);
+
+            var tr = await table1.ExecuteQuerySegmentedAsync(query, null);
+            return tr.Results;
         }
 
         private static async Task<string> SaveGameStateAsync(GameState gameState, ILogger log, ExecutionContext context)
@@ -98,7 +232,6 @@ namespace MarsGameState
             log.LogInformation($"Entity {gameState.Id} is saved to table {GAME_STATES_TABLE_NAME}");
             return gameState.Id;
         }
-
 
         private static async Task<GameState> LoadGameStateAsync(string gameId, ILogger log, ExecutionContext context)
         {

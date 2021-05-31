@@ -1,0 +1,31 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+
+    <title></title>
+    <link rel="stylesheet" href="style.css">
+    <script>
+
+        GAME_ID = document.location.pathname;
+        document.addEventListener('DOMContentLoaded',
+            async function () { })
+
+        function updateGui()
+        {
+            document.getElementById("game_id").disabled = document.form1.game_action.value == "new"
+        }
+    </script>
+</head>
+<body>
+    <form method="POST" id="form1" name="form1">
+        Player name:<br><input type="text" name="player_name" /><br>
+        <input type="radio" name="game_action" onclick="updateGui()" value="new" checked/> New<br>
+        <input type="radio" name="game_action" onclick="updateGui()"  value="join"/> Join<br>
+        Game ID:<br>
+        <input type="text" name="game_id" id="game_id" disabled/><br><br>
+        <input type="submit" value="Create / Join">
+    </form>
+</body>
+</html>

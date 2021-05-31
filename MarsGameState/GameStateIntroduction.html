@@ -1,0 +1,117 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+
+    <title></title>
+    <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="code.js"></script>
+    <script>
+        GAME_ID = document.location.pathname;
+
+        roles = ["Alex", "Brice", "Francis", "Glen", "Mason", "Shane"]
+        prevGameState = null;
+        gameState = null;
+
+        document.addEventListener('DOMContentLoaded',
+            async function () {
+                roles.forEach(e => addRole(e));
+
+                await updatePosition()
+                setInterval(updatePosition, 2000);
+            })
+
+        function addRole(e) {
+            opt = document.createElement("option");
+            opt.text = e;
+            opt.innerHtml = e;
+
+            opt.onclick = submitRole
+
+            document.getElementById("role").appendChild(opt)
+        }
+
+        function updateRoles(gameState)
+        {
+            gameState.RolesDistribution.forEach(function (e, i) {
+                selectControl = document.getElementById("role");
+                for (var i = 0; i < selectControl.options.length; i++) {
+                    if (gameState.PlayerName == e.PlayerName) {
+                        selectControl.options[i].selected = (selectControl.options[i].value == e.Role)
+                    }
+                    else
+                        selectControl.options[i].disabled = (selectControl.options[i].value == e.Role)
+                }
+            })
+        }
+
+        async function submitRole() {
+            let formData = new FormData()
+            formData.append('role', document.getElementById("role").value)
+
+            let url = HOST_NAME + GAME_ID;
+            console.log("Posting role info to " + url)
+            var response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            }).catch(() => alert("Error fetching data"));
+
+            await response.text()
+        }
+
+        async function updatePosition() {
+
+            let url = HOST_NAME + GAME_ID + "?action=GET_POSITION";
+            var response = await fetch(url, {
+                method: 'GET'
+            }).catch(() => alert("Error fetching data"));
+
+            prevGameState = gameState;
+            gameState = JSON.parse(await response.text());
+
+            document.getElementById("player_name").innerText = gameState.PlayerName;
+
+            updateRoles(gameState)
+
+            // TODO: Render all players/roles
+
+            console.log(JSON.stringify(gameState))
+
+            if (prevGameState != null && gameState != null)
+            {
+                if (prevGameState.GameChapter != gameState.GameChapter) {
+                    console.log("Game chapter has changed. Trying to refresh...")
+                    window.location = window.location;
+                }
+            }
+        }
+
+        async function nextChapter()
+        {
+            let formData = new FormData()
+            formData.append('chapter', 2) // TODO: if games was paused it could be different chapter
+
+            let url = HOST_NAME + GAME_ID;
+            console.log("Posting chapter info to " + url)
+            var response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            }).catch(() => alert("Error fetching data"));
+
+            await response.text()
+            await updatePosition()
+        }
+    </script>
+</head>
+<body>
+    Player name:<span id="player_name"></span><br><br>
+
+    <form method="POST" id="form1" name="form1">
+        Select role(s):<br>
+        <select name=role id=role size=10></select><br><br>
+
+        <input type="button" value="Next Chapter" onclick="nextChapter()">
+    </form>
+</body>
+</html>
