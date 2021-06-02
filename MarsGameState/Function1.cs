@@ -24,9 +24,6 @@ namespace MarsGameState
         private static readonly string[] files = new string[] { "code.js", "style.css", "favicon.ico" };
         private static readonly string[] chapterHtml = new string[] { "GameStateCreateJoin.html", "GameStateIntroduction.html", "GameStateChapter1.html" };
 
-        //private static readonly string URL = "http://localhost:7071/";
-        private static readonly string URL = "https://mars-mvp.azurewebsites.net/";
-
         [FunctionName("Function1")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "{game_id?}/{action1?}")] HttpRequest req,
@@ -40,23 +37,6 @@ namespace MarsGameState
 
                 if (req.Method == "GET")
                 {
-                    if (game_id == null || game_id == "")
-                    {
-                        string filePath = chapterHtml[0];
-                        string fileMimeType = "text/html";
-
-                        string htmlFilePath = Path.Combine(context.FunctionAppDirectory, filePath);
-                        var content1 = File.ReadAllText(htmlFilePath);
-
-                        var cr = new ContentResult()
-                        {
-                            Content = content1,
-                            ContentType = fileMimeType,
-                        };
-
-                        return cr;
-                    }
-
                     string action = req.Query["action"];
                     if (action == "GET_POSITION")
                     {
@@ -80,23 +60,23 @@ namespace MarsGameState
                     }
                     else
                     {
-                        string filePath = "";
+                        string fileName = "";
                         string fileMimeType = "";
 
                         if (files.Contains(game_id))
                         {
-                            filePath = game_id;
+                            fileName = game_id;
                             fileMimeType = "text/css";
                         }
                         else { 
                             var gameState = await LoadGameStateAsync(game_id, log, context);
                             
-                            filePath = chapterHtml[gameState.GameChapter];
+                            fileName = chapterHtml[gameState?.GameChapter ?? 0];
                             fileMimeType = "text/html";
                         }
 
-                        string htmlFilePath = Path.Combine(context.FunctionAppDirectory, filePath);
-                        var content1 = File.ReadAllText(htmlFilePath);
+                        string filePathName = Path.Combine(context.FunctionAppDirectory, "Content\\" + fileName);
+                        var content1 = File.ReadAllText(filePathName);
 
                         var cr = new ContentResult()
                         {
@@ -111,9 +91,14 @@ namespace MarsGameState
                 {
                     GameState gameState = null;
                     bool logon = false;
+                    string playerName = req.Cookies["PlayerName"];
                     if (game_id == null || game_id == "")
                     {
-                        logon = true;
+                        logon = true; // triggers the redirect
+
+                        playerName = req.Form["player_name"];
+                        SetCookie(req, "PlayerName", playerName, DateTimeOffset.Now.AddDays(1));
+
                         if (req.Form.ContainsKey("game_id") && req.Form["game_id"] != "")
                             game_id = req.Form["game_id"]; // joined the game
                         else
@@ -123,16 +108,6 @@ namespace MarsGameState
                     gameState = (await LoadGameStateAsync(game_id, log, context)) ?? new GameState(game_id, GameHostName);
                     if (req.Form.ContainsKey("chapter"))
                         gameState.GameChapter = Int32.Parse(req.Form["chapter"]);
-
-                    string playerName = req.Cookies["PlayerName"];
-                    if (playerName == "" || playerName == null)
-                        if(req.Form.ContainsKey("player_name"))
-                        {
-                            playerName = req.Form["player_name"];
-                            SetCookie(req, "PlayerName", playerName, DateTimeOffset.Now.AddDays(1));
-                        }
-                        else
-                            throw new UnauthorizedAccessException("Player name must be specified");
 
                     if (gameState.GameChapter == 1)
                     { // player chosen a role
@@ -156,7 +131,7 @@ namespace MarsGameState
                     // create or join
                     if (logon)
                     {
-                        RedirectResult rr = new RedirectResult(URL + game_id);
+                        RedirectResult rr = new RedirectResult(req.Path + game_id);
                         return rr;
                     }
                     else

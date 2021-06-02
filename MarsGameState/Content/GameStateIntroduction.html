@@ -50,7 +50,7 @@
             let formData = new FormData()
             formData.append('role', document.getElementById("role").value)
 
-            let url = HOST_NAME + GAME_ID;
+            let url = window.location;
             console.log("Posting role info to " + url)
             var response = await fetch(url, {
                 method: 'POST',
@@ -62,7 +62,7 @@
 
         async function updatePosition() {
 
-            let url = HOST_NAME + GAME_ID + "?action=GET_POSITION";
+            let url = window.location + "?action=GET_POSITION";
             var response = await fetch(url, {
                 method: 'GET'
             }).catch(() => alert("Error fetching data"));
@@ -92,7 +92,7 @@
             let formData = new FormData()
             formData.append('chapter', 2) // TODO: if games was paused it could be different chapter
 
-            let url = HOST_NAME + GAME_ID;
+            let url = window.location;
             console.log("Posting chapter info to " + url)
             var response = await fetch(url, {
                 method: 'POST',

@@ -19,7 +19,7 @@ namespace MarsGameState
         {
             Id = _Id;
             DateCreate = DateTime.Now.ToString();
-            Position = 0;
+            Position = 4;
             GameChapter = 1;
             GameHostName = _GameHostName;
 

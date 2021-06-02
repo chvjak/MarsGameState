@@ -66,7 +66,7 @@
             })
 
         async function updatePosition() {
-            let url = HOST_NAME + GAME_ID + "?action=GET_POSITION";
+            let url = window.location + "?action=GET_POSITION";
 
             var response = await fetch(url, {
                 method: 'GET'
@@ -83,7 +83,8 @@
 
             formData.append('position', document.form1.position.value)
 
-            let url = HOST_NAME + GAME_ID;
+            let url = window.location;
+
             console.log("Posting position info to " + url)
             var response = await fetch(url, {
                 method: 'POST',
@@ -103,9 +104,14 @@
             tabCell.classList.add("whitebold");
             tabCell.style.backgroundColor = color;
 
-
             var tabCell = tr.insertCell(-1);
-            tabCell.innerHTML = "<input type='radio' name='position' value='" + position + "'>";
+
+            var radio1 = document.createElement("input");
+            radio1.type = 'radio' 
+            radio1.name = 'position' 
+            radio1.value = position;
+            radio1.onclick = postNewPosition
+            tabCell.appendChild(radio1)
 
             var tabCell = tr.insertCell(-1);
             tabCell.innerHTML = "<span>" + text + "</span>";;
@@ -136,9 +142,8 @@
             </tbody>
         </table>
         <br>
-        <input type="button" value="Set New State" onclick="postNewPosition()">
+        <input type="button" value="Previous Chapter">
         <input type="button" value="Next Chapter">
-        <input type="button" value="Pause Game">
     </form>
 
     <!-- TODO: Show turns
