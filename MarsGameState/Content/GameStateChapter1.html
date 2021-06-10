@@ -5,8 +5,9 @@
     <meta charset="utf-8" />
 
     <title></title>
-    <link rel="stylesheet" href="style.css"/>
+    <link rel="stylesheet" href="style.css" />
     <script type="text/javascript" src="code.js"></script>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
     <script>
         GAME_ID = document.location.pathname;
         colors = [
@@ -96,7 +97,7 @@
         }
 
         function addStateRow(position, color, text) {
-            var table = document.getElementById("table1");
+            var table = $("#table1")[0];
             tr = table.insertRow(-1);
 
             var tabCell = tr.insertCell(-1);
@@ -107,8 +108,8 @@
             var tabCell = tr.insertCell(-1);
 
             var radio1 = document.createElement("input");
-            radio1.type = 'radio' 
-            radio1.name = 'position' 
+            radio1.type = 'radio'
+            radio1.name = 'position'
             radio1.value = position;
             radio1.onclick = postNewPosition
             tabCell.appendChild(radio1)

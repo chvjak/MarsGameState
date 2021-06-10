@@ -6,6 +6,7 @@
 
     <title></title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
     <script type="text/javascript" src="code.js"></script>
     <script>
         GAME_ID = document.location.pathname;
@@ -29,13 +30,12 @@
 
             opt.onclick = submitRole
 
-            document.getElementById("role").appendChild(opt)
+            $("#role")[0].appendChild(opt)
         }
 
-        function updateRoles(gameState)
-        {
+        function updateRoles(gameState) {
             gameState.RolesDistribution.forEach(function (e, i) {
-                selectControl = document.getElementById("role");
+                selectControl = $("#role")[0];
                 for (var i = 0; i < selectControl.options.length; i++) {
                     if (gameState.PlayerName == e.PlayerName) {
                         selectControl.options[i].selected = (selectControl.options[i].value == e.Role)
@@ -48,7 +48,7 @@
 
         async function submitRole() {
             let formData = new FormData()
-            formData.append('role', document.getElementById("role").value)
+            formData.append('role', $("#role")[0].value)
 
             let url = window.location;
             console.log("Posting role info to " + url)
@@ -70,7 +70,7 @@
             prevGameState = gameState;
             gameState = JSON.parse(await response.text());
 
-            document.getElementById("player_name").innerText = gameState.PlayerName;
+            $("#player_name")[0].innerText = gameState.PlayerName;
 
             updateRoles(gameState)
 
@@ -78,8 +78,7 @@
 
             console.log(JSON.stringify(gameState))
 
-            if (prevGameState != null && gameState != null)
-            {
+            if (prevGameState != null && gameState != null) {
                 if (prevGameState.GameChapter != gameState.GameChapter) {
                     console.log("Game chapter has changed. Trying to refresh...")
                     window.location = window.location;
@@ -87,8 +86,7 @@
             }
         }
 
-        async function nextChapter()
-        {
+        async function nextChapter() {
             let formData = new FormData()
             formData.append('chapter', 2) // TODO: if games was paused it could be different chapter
 
