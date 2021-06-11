@@ -33,8 +33,6 @@ namespace MarsGameState
         {
             try
             {
-                string GameHostName = "DefaultHost";
-
                 if (req.Method == "GET")
                 {
                     string action = req.Query["action"];
@@ -42,11 +40,11 @@ namespace MarsGameState
                     {
                         string playerName = req.Cookies["PlayerName"];
 
-                        var gameState = await LoadGameStateAsync(game_id, log, context);
+                        var gameState = await LoadGameStateAsync(game_id, log, context); // [Chapter, PositionInChapter, PlayerName, ActivePlayer]
                         JObject jsonObj = JObject.FromObject(gameState);
                         jsonObj.Add("PlayerName", playerName);
 
-                        var playerRoles = await LoadPlayerRolesAsync(game_id, log, context);
+                        var playerRoles = await LoadPlayerRolesAsync(game_id, log, context); // [PlayerA, PLayerB, PlayerC]
                         jsonObj.Add("RolesDistribution", JArray.FromObject(playerRoles));
 
                         string content1 = JsonConvert.SerializeObject(jsonObj);
@@ -105,13 +103,18 @@ namespace MarsGameState
                             game_id = GenerateId(); // game creation
                     }
 
-                    gameState = (await LoadGameStateAsync(game_id, log, context)) ?? new GameState(game_id, GameHostName);
+                    gameState = (await LoadGameStateAsync(game_id, log, context)) ?? new GameState(game_id, playerName);
                     if (req.Form.ContainsKey("chapter"))
                         gameState.GameChapter = Int32.Parse(req.Form["chapter"]);
 
+                    if (req.Form.ContainsKey("end_turn"))
+                    {
+                        var playerRoles = await LoadPlayerRolesAsync(game_id, log, context); // [PlayerA, PLayerB, PlayerC]
+                        gameState.ActivePlayer = (gameState.ActivePlayer + 1) % playerRoles.Count();
+                    }
+
                     if (gameState.GameChapter == 1)
                     { // player chosen a role
-                        // TODO: need to distingusih READY and ROLE_SELECT - in particular with regards the result
                         string role = "";
 
                         if (req.Form.ContainsKey("role"))

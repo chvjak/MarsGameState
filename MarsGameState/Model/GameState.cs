@@ -12,6 +12,8 @@ namespace MarsGameState
         public string GameHostName { get; set; } // The one who can advance the chapters
         public int Position { get; set; }
         public int GameChapter { get; set; } // lobby - chapter 0, chapter 1 , chapter 2, ..
+        public int ActivePlayer { get; set; }
+
         public bool NextChapterReady { get; set; } // Chapter 0 - every role distributrd, Chapter 1 - Position 20, ...
 
         public GameState() { }
@@ -21,6 +23,7 @@ namespace MarsGameState
             DateCreate = DateTime.Now.ToString();
             Position = 4;
             GameChapter = 1;
+            ActivePlayer = 0;
             GameHostName = _GameHostName;
 
             PartitionKey = _GameHostName;

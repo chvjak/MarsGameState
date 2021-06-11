@@ -75,13 +75,27 @@
 
             gameState = JSON.parse(await response.text());
             document.form1.position.value = gameState.Position;
+            
+            updateRoles2(gameState)
 
             return true;
         }
 
+        function updateRoles2(gameState) {
+            $("#player_role tr").remove();
+
+            gameState.RolesDistribution.forEach(function (e, i) {
+                var $tr = $('<tr>').append(
+                    $('<td>').text(e.PlayerName),
+                    $('<td>').text(e.Role),
+                    $('<td>').text(i == gameState.ActivePlayer ? "ACTIVE" : ""),
+                ).appendTo("#player_role");
+
+            })
+        }
+
         async function postNewPosition() {
             let formData = new FormData()
-
             formData.append('position', document.form1.position.value)
 
             let url = window.location;
@@ -94,6 +108,21 @@
 
             await response
             await updatePosition()
+        }
+
+        async function endTurn()
+        {
+            let formData = new FormData()
+            formData.append('end_turn', 1)
+
+            let url = window.location;
+
+            var response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            }).catch(() => alert("Error fetching data"));
+
+            await response
         }
 
         function addStateRow(position, color, text) {
@@ -143,17 +172,28 @@
             </tbody>
         </table>
         <br>
-        <input type="button" value="Previous Chapter">
-        <input type="button" value="Next Chapter">
     </form>
 
-    <!-- TODO: Show turns
-             <table>
-               <tr><th>Player</th><th>Turn</th></tr>
-               <tr><td>Player 1</td><td><input type=radio name=player_turn></td></tr>
-               <tr><td>Player 2</td><td><input type=radio name=player_turn></td></tr>
-             </table>
-        -->
 
-    </body>
-    </html>
+    <table id="player_role">
+        <tr>
+            <th>
+                Player
+            </th>
+            <th>
+                Role
+            </th>
+            <th>
+                Turn
+            </th>
+        </tr>
+    </table>
+
+    <br>
+
+    <input type="button" value="Previous Chapter">
+    <input type="button" value="Next Chapter">
+    <input type="button" value="End Turn" onclick="endTurn()">
+
+</body>
+</html>
