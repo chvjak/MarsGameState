@@ -90,6 +90,11 @@
             updateRoles(gameState)
             updateRoles2(gameState)
 
+            $("#game_log").text("")
+            gameState.GameLogRecords.forEach(function (e, i) {
+                $("#game_log").append($("<div>").text(e.Timestamp + ": " + e.Message))
+            })
+
             console.log(JSON.stringify(gameState))
 
             if (prevGameState != null && gameState != null) {
@@ -133,6 +138,13 @@
                 </th>
             </tr>
         </table>
+
+        <br>
+
+        <div id="game_log">
+        </div>
+
+        <br>
 
         <input type="button" value="Next Chapter" onclick="nextChapter()">
     </form>

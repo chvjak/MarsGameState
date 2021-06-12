@@ -19,7 +19,6 @@ namespace MarsGameState
     public static class Function1
     {
         private static readonly string GAME_STATES_TABLE_NAME = "GameStates";
-        private static readonly string PLAYER_ROLES_TABLE_NAME = "PlayerRoles";
 
         private static readonly string[] files = new string[] { "code.js", "style.css", "favicon.ico" };
         private static readonly string[] chapterHtml = new string[] { "GameStateCreateJoin.html", "GameStateIntroduction.html", "GameStateChapter1.html" };
@@ -44,8 +43,11 @@ namespace MarsGameState
                         JObject jsonObj = JObject.FromObject(gameState);
                         jsonObj.Add("PlayerName", playerName);
 
-                        var playerRoles = await LoadPlayerRolesAsync(game_id, log, context); // [PlayerA, PLayerB, PlayerC]
+                        var playerRoles = await LoadMultipleAsync<PlayerRole>(game_id, log, context); // [PlayerA, PLayerB, PlayerC]
                         jsonObj.Add("RolesDistribution", JArray.FromObject(playerRoles));
+
+                        var gameLogRecords = await LoadMultipleAsync<GameLogRecord>(game_id, log, context);
+                        jsonObj.Add("GameLogRecords", JArray.FromObject(gameLogRecords.OrderByDescending(x => x.PartitionKey).Take(20).Reverse()));
 
                         string content1 = JsonConvert.SerializeObject(jsonObj);
                         var cr1 = new ContentResult()
@@ -109,8 +111,11 @@ namespace MarsGameState
 
                     if (req.Form.ContainsKey("end_turn"))
                     {
-                        var playerRoles = await LoadPlayerRolesAsync(game_id, log, context); // [PlayerA, PLayerB, PlayerC]
+                        var playerRoles = await LoadMultipleAsync<PlayerRole>(game_id, log, context); // [PlayerA, PLayerB, PlayerC]
                         gameState.ActivePlayer = (gameState.ActivePlayer + 1) % playerRoles.Count();
+
+                        var gameLogRecord = new GameLogRecord(game_id, playerName, $"{playerName} ended the turn");
+                        await SaveSingleAsync<GameLogRecord>(gameLogRecord, log, context);
                     }
 
                     if (gameState.GameChapter == 1)
@@ -121,15 +126,23 @@ namespace MarsGameState
                             role = req.Form["role"];
 
                         var playerRole = new PlayerRole(game_id, playerName, role);
-                        await SavePlayerRoleAsync(playerRole, log, context);
+                        await SaveSingleAsync<PlayerRole>(playerRole, log, context);
+
+                        var gameLogRecord = new GameLogRecord(game_id, playerName, $"{playerName} changed the role to {role}");
+                        await SaveSingleAsync<GameLogRecord>(gameLogRecord, log, context);
                     }
                     else if (gameState.GameChapter == 2)
                     { // progress in chapter changed OR chapter changed
-                        if(req.Form.ContainsKey("position"))
-                            gameState.Position =  Int32.Parse(req.Form["position"]);
+                        if (req.Form.ContainsKey("position"))
+                        {
+                            gameState.Position = Int32.Parse(req.Form["position"]);
+
+                            var gameLogRecord = new GameLogRecord(game_id, playerName, $"{playerName} set chapter position to {gameState.Position}");
+                            await SaveSingleAsync<GameLogRecord>(gameLogRecord, log, context);
+                        }
                     }
 
-                    await SaveGameStateAsync(gameState, log, context); // not always make sense - so far on game create and position update
+                    await SaveSingleAsync<GameState>(gameState, log, context); // not always make sense - so far on game create and position update
 
                     // create or join
                     if (logon)
@@ -157,58 +170,27 @@ namespace MarsGameState
             req.HttpContext.Response.Cookies.Append(cookie_name, cookie_value, option);
         }
 
-        private static async Task<string> SavePlayerRoleAsync(PlayerRole playerRole, ILogger log, ExecutionContext context)
+        private static async Task<string> SaveSingleAsync<T>(T entity, ILogger log, ExecutionContext context) where T : ITableEntity, new()
         {
             CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
             var tableClient1 = storageAccount1.CreateCloudTableClient();
-            var table1 = tableClient1.GetTableReference(PLAYER_ROLES_TABLE_NAME);
+            var table1 = tableClient1.GetTableReference(typeof(T).Name);
             await table1.CreateIfNotExistsAsync();
 
-            TableResult tr = await table1.ExecuteAsync(TableOperation.InsertOrReplace(playerRole));
-            return playerRole.GameId;
+            TableResult tr = await table1.ExecuteAsync(TableOperation.InsertOrReplace(entity));
+            return entity.PartitionKey;
         }
 
-        private static async Task<PlayerRole> LoadPlayerRoleAsync(string gameId, string playerName, ILogger log, ExecutionContext context)
+        private static async Task<IEnumerable<T>> LoadMultipleAsync<T>(string gameId, ILogger log, ExecutionContext context) where T : ITableEntity, new()
         {
             CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
             var tableClient1 = storageAccount1.CreateCloudTableClient();
-            var table1 = tableClient1.GetTableReference(PLAYER_ROLES_TABLE_NAME);
-
-            string filterPK = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, gameId);
-            string filterRK = TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, playerName);
-
-            var query = new TableQuery<PlayerRole>().Where(TableQuery.CombineFilters(filterPK, TableOperators.And, filterRK));
-
-            var tr = await table1.ExecuteQuerySegmentedAsync(query, null);
-            return tr.SingleOrDefault();
-        }
-
-        private static async Task<IEnumerable<PlayerRole>> LoadPlayerRolesAsync(string gameId, ILogger log, ExecutionContext context)
-        {
-            CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
-            var tableClient1 = storageAccount1.CreateCloudTableClient();
-            var table1 = tableClient1.GetTableReference(PLAYER_ROLES_TABLE_NAME);
+            var table1 = tableClient1.GetTableReference(typeof(T).Name);
 
             string filter = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, gameId);
-            var query = new TableQuery<PlayerRole>().Where(filter);
-
+            var query = new TableQuery<T>().Where(filter);
             var tr = await table1.ExecuteQuerySegmentedAsync(query, null);
             return tr.Results;
-        }
-
-        private static async Task<string> SaveGameStateAsync(GameState gameState, ILogger log, ExecutionContext context)
-        {
-            log.LogInformation($"C# Http trigger function executed at: {DateTime.Now}");
-
-            CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
-            var tableClient1 = storageAccount1.CreateCloudTableClient();
-            var table1 = tableClient1.GetTableReference(GAME_STATES_TABLE_NAME);
-            await table1.CreateIfNotExistsAsync();
-
-            TableResult tr = await table1.ExecuteAsync(TableOperation.InsertOrReplace(gameState));
-
-            log.LogInformation($"Entity {gameState.Id} is saved to table {GAME_STATES_TABLE_NAME}");
-            return gameState.Id;
         }
 
         private static async Task<GameState> LoadGameStateAsync(string gameId, ILogger log, ExecutionContext context)

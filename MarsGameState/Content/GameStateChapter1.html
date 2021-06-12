@@ -78,6 +78,11 @@
             
             updateRoles2(gameState)
 
+            $("#game_log").text("")
+            gameState.GameLogRecords.forEach(function (e, i) {
+                $("#game_log").append($("<div>").text(e.Timestamp + ": " + e.Message))
+            })
+
             return true;
         }
 
@@ -188,6 +193,11 @@
             </th>
         </tr>
     </table>
+
+    <br>
+
+    <div id="game_log">
+    </div>
 
     <br>
 
