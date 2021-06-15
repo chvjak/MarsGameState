@@ -17,21 +17,13 @@
 
         document.addEventListener('DOMContentLoaded',
             async function () {
-                roles.forEach(e => addRole(e));
+                roles.forEach(e => $("#role").append($("<option>").text(e).val(e)));
+
+                $("#role").change(submitRole)
 
                 await updatePosition()
                 setInterval(updatePosition, 2000);
             })
-
-        function addRole(e) {
-            opt = document.createElement("option");
-            opt.text = e;
-            opt.innerHtml = e;
-
-            opt.onclick = submitRole
-
-            $("#role")[0].appendChild(opt)
-        }
 
         function updateRoles(gameState) {
             gameState.RolesDistribution.forEach(function (e, i) {
@@ -47,13 +39,10 @@
         }
 
         function updateRoles2(gameState) {
-            console.log("updateRoles2:10")
             $("#player_role tr").remove();
 
-            console.log("updateRoles2:20")
             gameState.RolesDistribution.forEach(function (e, i) {
-                console.log("updateRoles2:30" + e)
-                var $tr = $('<tr>').append(
+                $('<tr>').append(
                     $('<td>').text(e.PlayerName),
                     $('<td>').text(e.Role)
                 ).appendTo("#player_role");
@@ -86,6 +75,7 @@
             gameState = JSON.parse(await response.text());
 
             $("#player_name")[0].innerText = gameState.PlayerName;
+            $("#game_id")[0].innerText = gameState.Id;
 
             updateRoles(gameState)
             updateRoles2(gameState)
@@ -122,6 +112,8 @@
     </script>
 </head>
 <body>
+    Game ID:<span id="game_id"></span><br><br>
+
     Player name:<span id="player_name"></span><br><br>
 
     <form method="POST" id="form1" name="form1">

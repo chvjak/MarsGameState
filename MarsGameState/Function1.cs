@@ -18,10 +18,10 @@ namespace MarsGameState
 {
     public static class Function1
     {
-        private static readonly string GAME_STATES_TABLE_NAME = "GameStates";
-
         private static readonly string[] files = new string[] { "code.js", "style.css", "favicon.ico" };
         private static readonly string[] chapterHtml = new string[] { "GameStateCreateJoin.html", "GameStateIntroduction.html", "GameStateChapter1.html" };
+
+        private static readonly Dictionary<string, string> mimeTypeMap = new Dictionary<string, string> { { "ico" , "image/x-icon" }, { "html", "text/html" }, { "js" , "text/javascript" }, { "css" , "text/css" } };
 
         [FunctionName("Function1")]
         public static async Task<IActionResult> Run(
@@ -37,6 +37,8 @@ namespace MarsGameState
                     string action = req.Query["action"];
                     if (action == "GET_POSITION")
                     {
+                        log.LogError("Loading game state :" + game_id, null);
+
                         string playerName = req.Cookies["PlayerName"];
 
                         var gameState = await LoadGameStateAsync(game_id, log, context); // [Chapter, PositionInChapter, PlayerName, ActivePlayer]
@@ -47,7 +49,14 @@ namespace MarsGameState
                         jsonObj.Add("RolesDistribution", JArray.FromObject(playerRoles));
 
                         var gameLogRecords = await LoadMultipleAsync<GameLogRecord>(game_id, log, context);
-                        jsonObj.Add("GameLogRecords", JArray.FromObject(gameLogRecords.OrderByDescending(x => x.PartitionKey).Take(20).Reverse()));
+                        jsonObj.Add("GameLogRecords", JArray.FromObject(gameLogRecords
+                            .OrderByDescending(x => x.RowKey)
+                            .Take(20)
+                            .Select(x=> new Dictionary<string, string>{
+                                { "Timestamp", x.Timestamp.DateTime.ToShortDateString() + " " + x.Timestamp.DateTime.ToLongTimeString() },
+                                { "Message", x.Message}
+                            })
+                            ));
 
                         string content1 = JsonConvert.SerializeObject(jsonObj);
                         var cr1 = new ContentResult()
@@ -65,26 +74,25 @@ namespace MarsGameState
 
                         if (files.Contains(game_id))
                         {
-                            fileName = game_id;
-                            fileMimeType = "text/css";
+                            fileName = game_id;                          
+                            fileMimeType = mimeTypeMap[fileName.Split(".")[1]];
                         }
-                        else { 
+                        else {
                             var gameState = await LoadGameStateAsync(game_id, log, context);
-                            
+
                             fileName = chapterHtml[gameState?.GameChapter ?? 0];
-                            fileMimeType = "text/html";
+                            fileMimeType = mimeTypeMap[fileName.Split(".")[1]];
                         }
+
+                        log.LogError("Loading a file :" + fileName, null);
 
                         string filePathName = Path.Combine(context.FunctionAppDirectory, "Content\\" + fileName);
-                        var content1 = File.ReadAllText(filePathName);
-
-                        var cr = new ContentResult()
+                        using (FileStream fs = new FileStream(filePathName, FileMode.Open))
                         {
-                            Content = content1,
-                            ContentType = fileMimeType,
-                        };
-
-                        return cr;
+                            var byteArray = new Byte[fs.Length];
+                            fs.Read(byteArray, 0, (int)fs.Length);
+                            return new FileContentResult(byteArray, fileMimeType);
+                        }
                     }
                 }
                 else if (req.Method == "POST")
@@ -100,22 +108,33 @@ namespace MarsGameState
                         SetCookie(req, "PlayerName", playerName, DateTimeOffset.Now.AddDays(1));
 
                         if (req.Form.ContainsKey("game_id") && req.Form["game_id"] != "")
+                        {
                             game_id = req.Form["game_id"]; // joined the game
+
+                            await WriteGameLogMessage(game_id, log, context, playerName, $"{playerName} joined the game");
+                        }
                         else
+                        {
                             game_id = GenerateId(); // game creation
+
+                            await WriteGameLogMessage(game_id, log, context, playerName, $"{playerName} created the game");
+                        }
                     }
 
                     gameState = (await LoadGameStateAsync(game_id, log, context)) ?? new GameState(game_id, playerName);
                     if (req.Form.ContainsKey("chapter"))
+                    { 
                         gameState.GameChapter = Int32.Parse(req.Form["chapter"]);
+
+                        await WriteGameLogMessage(game_id, log, context, playerName, $"{playerName} set chapter to {gameState.GameChapter}");
+                    }
 
                     if (req.Form.ContainsKey("end_turn"))
                     {
                         var playerRoles = await LoadMultipleAsync<PlayerRole>(game_id, log, context); // [PlayerA, PLayerB, PlayerC]
                         gameState.ActivePlayer = (gameState.ActivePlayer + 1) % playerRoles.Count();
 
-                        var gameLogRecord = new GameLogRecord(game_id, playerName, $"{playerName} ended the turn");
-                        await SaveSingleAsync<GameLogRecord>(gameLogRecord, log, context);
+                        await WriteGameLogMessage(game_id, log, context, playerName, $"{playerName} ended the turn");
                     }
 
                     if (gameState.GameChapter == 1)
@@ -128,8 +147,7 @@ namespace MarsGameState
                         var playerRole = new PlayerRole(game_id, playerName, role);
                         await SaveSingleAsync<PlayerRole>(playerRole, log, context);
 
-                        var gameLogRecord = new GameLogRecord(game_id, playerName, $"{playerName} changed the role to {role}");
-                        await SaveSingleAsync<GameLogRecord>(gameLogRecord, log, context);
+                        await WriteGameLogMessage(game_id, log, context, playerName, $"{playerName} changed the role to {role}");
                     }
                     else if (gameState.GameChapter == 2)
                     { // progress in chapter changed OR chapter changed
@@ -137,8 +155,7 @@ namespace MarsGameState
                         {
                             gameState.Position = Int32.Parse(req.Form["position"]);
 
-                            var gameLogRecord = new GameLogRecord(game_id, playerName, $"{playerName} set chapter position to {gameState.Position}");
-                            await SaveSingleAsync<GameLogRecord>(gameLogRecord, log, context);
+                            await WriteGameLogMessage(game_id, log, context, playerName, $"{playerName} set chapter position to {gameState.Position}");
                         }
                     }
 
@@ -157,24 +174,37 @@ namespace MarsGameState
             }
             catch (Exception e)
             {
-                log.LogError(e.Message);
+                log.LogError(e.ToString());
                 return new OkObjectResult(e.Message);
             }
         }
 
+        private static async Task WriteGameLogMessage(string game_id, ILogger log, ExecutionContext context, string playerName, string message)
+        {
+            var gameLogRecord = new GameLogRecord(game_id, playerName, message);
+            await SaveSingleAsync<GameLogRecord>(gameLogRecord, log, context);
+        }
+
         private static void SetCookie(HttpRequest req, string cookie_name, string cookie_value, DateTimeOffset time_to_expiration)
         {
-            CookieOptions option = new CookieOptions();
-            option.Expires = time_to_expiration;
-            option.HttpOnly = true;
+            var option = new CookieOptions
+            {
+                Expires = time_to_expiration,
+                HttpOnly = true
+            };
             req.HttpContext.Response.Cookies.Append(cookie_name, cookie_value, option);
+        }
+
+        private static string Pluralize(string Name)
+        {
+            return Name + "s";
         }
 
         private static async Task<string> SaveSingleAsync<T>(T entity, ILogger log, ExecutionContext context) where T : ITableEntity, new()
         {
             CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
             var tableClient1 = storageAccount1.CreateCloudTableClient();
-            var table1 = tableClient1.GetTableReference(typeof(T).Name);
+            var table1 = tableClient1.GetTableReference(Pluralize(typeof(T).Name));
             await table1.CreateIfNotExistsAsync();
 
             TableResult tr = await table1.ExecuteAsync(TableOperation.InsertOrReplace(entity));
@@ -185,7 +215,7 @@ namespace MarsGameState
         {
             CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
             var tableClient1 = storageAccount1.CreateCloudTableClient();
-            var table1 = tableClient1.GetTableReference(typeof(T).Name);
+            var table1 = tableClient1.GetTableReference(Pluralize(typeof(T).Name));
 
             string filter = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, gameId);
             var query = new TableQuery<T>().Where(filter);
@@ -197,7 +227,7 @@ namespace MarsGameState
         {
             CloudStorageAccount storageAccount1 = GetCloudStorageAccount(log, context);
             var tableClient1 = storageAccount1.CreateCloudTableClient();
-            var table1 = tableClient1.GetTableReference(GAME_STATES_TABLE_NAME);
+            var table1 = tableClient1.GetTableReference(Pluralize(typeof(GameState).Name));
 
             string filter = TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, gameId);
             TableQuery<GameState> query = new TableQuery<GameState>().Where(filter);

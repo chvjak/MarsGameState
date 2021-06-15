@@ -10,6 +10,9 @@
     <None Update="Content\code.js">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Content\favicon.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="GameState.html">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
