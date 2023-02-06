@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
     <script>
-
+        
         GAME_ID = document.location.pathname;
         document.addEventListener('DOMContentLoaded',
             async function () { })
@@ -22,10 +22,13 @@
 <body>
     <form method="POST" id="form1" name="form1">
         Player name:<br><input type="text" name="player_name" /><br>
-        <input type="radio" name="game_action" onclick="updateGui()" value="new" checked/> New<br>
-        <input type="radio" name="game_action" onclick="updateGui()"  value="join"/> Join<br>
+        <input type="radio" name="game_action" onclick="updateGui()" value="new" checked /> New<br>
+        <input type="radio" name="game_action" onclick="updateGui()" value="join" /> Join<br>
         Game ID:<br>
-        <input type="text" name="game_id" id="game_id" disabled/><br><br>
+        <input type="text" name="game_id" id="game_id" disabled /><br><br>
+
+        <!-- TODO: if joining the game - query server and check if the name is not taken, if not - ""login", redirect to .../gameid -->
+        <!-- TODO: if creating the game - post to server game creation request, "login", get game id, redirect to .../gameid -->
         <input type="submit" value="Create / Join">
     </form>
 </body>
